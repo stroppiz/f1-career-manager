@@ -97,7 +97,7 @@ tbody tr{transition:background .15s}tbody tr:hover{background:#ffffff08}
    <small>GESTIONE</small>
    <button onclick="saveCareer()">💾 &nbsp; Salva carriera</button>
    <button onclick="exportSave()">⬇ &nbsp; Esporta salvataggio</button>
-   <button onclick="el('impFile').click()">⬆ &nbsp; Importa salvataggio</button><input type="file" id="impFile" accept=".json" style="display:none" onchange="importSave(this)">
+   <button onclick="openSaveModal()">⬆ &nbsp; Importa salvataggio</button><input type="file" id="impFile" accept=".json" style="display:none" onchange="importSave(this)">
    <button onclick="backToMenu()">⌂ &nbsp; Menu principale</button>
   </nav>
   <main class="content" id="pageContent"></main>
@@ -223,13 +223,13 @@ function promoteF2Talent(){
 const stdSel=(W,k)=>{W.sel=W.sel||{};if(!W.sel[k]){const q=k==="q"||k==="sq",f=q?(k==="q"?W.fcQ>50:false):(fcOf(W,k==="r"?"race":"sprint")||{p:0}).p>=60;W.sel[k]={qr:q?0:100,dw:f?100:0}}return W.sel[k]};
 const selSet=stdSel;
 function selUI(W,k){
- const s=selSet(W,k);
- const b=(f,v,l,cur)=>`<button class="${cur===v?"on":""}" onclick="W_sel('${k}','${f}',${v},this)">${l}</button>`;
+ const s=selSet(W,k),lk=!!(W.lock&&W.lock[k]);
+ const b=(f,v,l,cur)=>`<button class="${cur===v?"on":""}" ${lk?"disabled":""} onclick="W_sel('${k}','${f}',${v},this)">${l}</button>`;
  return `<div class="row"><div class="field" style="min-width:260px"><label>Assetto per questa sessione</label><div class="seg">${b("qr",0,"Da qualifica",s.qr)}${b("qr",50,"Equilibrato",s.qr)}${b("qr",100,"Da gara",s.qr)}</div></div>
  <div class="field" style="min-width:200px"><label>Assetto da bagnato</label><div class="seg">${b("dw",0,"No",s.dw)}${b("dw",100,"Sì",s.dw)}</div></div></div>
- <p class="muted" style="font-size:12px;margin:0 0 8px">Da qualifica: più veloce sul giro secco, gomme più stressate in gara. Da gara: passo e usura migliori. L'assetto da bagnato aiuta solo con la pista bagnata e penalizza sull'asciutto: scegli in base alla previsione.</p>`;
+ <p class="muted" style="font-size:12px;margin:0 0 8px">${lk?"🔒 Scelta bloccata per tutta la sessione. ":"⚠ La scelta si fa una sola volta a inizio sessione e poi non si può più cambiare (si ripresenta dopo la gara sprint, nella revisione setup). "}Da qualifica: più veloce sul giro secco, gomme più stressate in gara. Da gara: passo e usura migliori. L'assetto da bagnato aiuta solo con la pista bagnata e penalizza sull'asciutto: scegli in base alla previsione.</p>`;
 }
-function W_sel(k,f,v,btn){const W=G.weekend;selSet(W,k)[f]=v;[...btn.parentNode.children].forEach(b=>b.classList.toggle("on",b===btn));saveCareer(false)}
+function W_sel(k,f,v,btn){const W=G.weekend;if(W.lock&&W.lock[k]){toast("Assetto già scelto: non si può cambiare durante la sessione.");return}selSet(W,k)[f]=v;[...btn.parentNode.children].forEach(b=>b.classList.toggle("on",b===btn));saveCareer(false)}
 /* --- fine stagione F2 --- */
 function f1Needs(){return TEAM_DATA.map((t,i)=>{const v=t.dr.map(d=>d[2]*.6+d[3]*.25+d[4]*.15);const k=v[0]<v[1]?0:1;return{i,t,rating:(t.st[0]+t.st[1]+t.st[2])/3,repl:t.dr[k][0],rv:v[k],seat:k,mate:t.dr[1-k][0]}})}
 function makeOffersF2(){
@@ -511,13 +511,14 @@ const hasSet=(W,t)=>W.inv[t].n+W.inv[t].u>0;
 function useSets(W,t,n){const x=W.inv[t];if(x.n<n)return false;x.n-=n;x.u+=n;return true}
 function takeSet(W,t){const x=W.inv[t];if(x.n>0){x.n--;return 0}if(x.u>0){x.u--;return 5}return 12}
 function availTyre(W,t){if(hasSet(W,t))return t;const g="IW".includes(t)?["I","W"]:["M","H","S"];return g.find(x=>hasSet(W,x))||t}
-const invHtml=W=>["S","M","H","I","W"].map(t=>`<span class="tag" style="margin-right:4px">${tyreBadge(t)} <b>${W.inv[t].n}</b>${W.inv[t].u?` +${W.inv[t].u} usate`:""}</span>`).join("");
+const TYS=()=>G&&G.cat==="F2"?["S","M","I","W"]:["S","M","H","I","W"];
+const invHtml=W=>TYS().map(t=>`<span class="tag" style="margin-right:4px">${tyreBadge(t)} <b>${W.inv[t].n}</b>${W.inv[t].u?` +${W.inv[t].u} usate`:""}</span>`).join("");
 function rainWord(mm){return mm<.5?"asciutto":mm<2?"pioggerella":mm<5?"pioggia leggera":mm<10?"pioggia moderata":"pioggia forte"}
 
 function ensureWeekend(){
  if(G.weekend)return;const c=circ(G.round);
  const rainy=Math.random()<Math.min(.7,c.rain*1.4),pr=rainy?.6:c.rain*.35;
- const W={ci:G.round,sprint:c.sprint,order:G.cat==="F2"?["fp1","q","sprint","race"]:c.sprint?["fp1","sq","sprint","setup","q","race"]:["fp1","fp2","fp3","q","race"],si:0,step:"fp1",qb:0,rb:0,fp:{runs:[0,0,0],total:0,notes:[[],[],[]],tyres:{},set:midSet()},setup:midSet(),set2:null,res:{},grid:null,sgrid:null,q:null,sq:null,rs:null,done:false,appr:"N",qComp:"S",inv:mkInv(c.sprint),fcN:{r:gauss(),s:gauss(),q:gauss()},ver:4,tf:G.teams.map(()=>G.cat==="F2"?0:gauss()*.07),df:G.drivers.map(()=>gauss()*.06),apErr:G.drivers.map(()=>Math.abs(gauss())*.08+.03)};
+ const W={ci:G.round,sprint:c.sprint,order:G.cat==="F2"?["fp1","q","sprint","race"]:c.sprint?["fp1","sq","sprint","setup","q","race"]:["fp1","fp2","fp3","q","race"],si:0,step:"fp1",qb:0,rb:0,fp:{runs:[0,0,0],total:0,notes:[[],[],[]],tyres:{},set:midSet()},setup:midSet(),set2:null,res:{},grid:null,sgrid:null,q:null,sq:null,rs:null,done:false,appr:"N",qComp:"S",inv:G.cat==="F2"?{S:{n:4,u:0},M:{n:4,u:0},H:{n:0,u:0},I:{n:3,u:0},W:{n:2,u:0}}:mkInv(c.sprint),fcN:{r:gauss(),s:gauss(),q:gauss()},ver:4,tf:G.teams.map(()=>G.cat==="F2"?0:gauss()*.07),df:G.drivers.map(()=>gauss()*.06),apErr:G.drivers.map(()=>Math.abs(gauss())*.08+.03)};
  const id={aero:clamp(c.df+rnd(-7,7),5,98),susp:clamp(Math.round(70-c.df*.3+rnd(-18,18)),10,90),brake:rnd(35,65),diff:rnd(30,70)};
  W.ideal=id;
  W.wxQ=Math.random()<(rainy?.55:c.rain*.2)?rf(.25,.85):0;
@@ -577,7 +578,7 @@ const fpCur=W=>W.step.startsWith("fp")?+W.step.slice(2)-1:9;
 const PROGS={setup:"Messa a punto del setup",quali:"Simulazione qualifica (giri lanciati)",race:"Passo gara (long run)",tyres:"Test gomme"};
 function useSetMode(W,t,mode){const x=W.inv[t];if(mode==="u")return x.u>=1;if(x.n<1)return false;x.n--;x.u++;return true}
 function tkEst(W,t){const F=W.fp,o=F.tyres[t];if(o)return{v:o.v,err:Math.max(1,Math.round(6/(1+o.n*1.3))),n:o.n};F.tkN=F.tkN||{};if(F.tkN[t]===undefined)F.tkN[t]=gauss();return{v:Math.max(5,Math.round(lifeOf(t,circ())+F.tkN[t]*6)),err:6,n:0}}
-function tyreEstTxt(W){return"Vita stimata: "+["S","M","H","I","W"].map(t=>{const e=tkEst(W,t);return`${t} ~${e.v}±${e.err} giri`}).join(", ")+"."}
+function tyreEstTxt(W){return"Vita stimata: "+TYS().map(t=>{const e=tkEst(W,t);return`${t} ~${e.v}±${e.err} giri`}).join(", ")+"."}
 function fpView(W,c){
  const n=fpCur(W),F=W.fp,wx=W.fpWx[n],maxRuns=W.sprint?3:2,runs=F.runs[n],wetF=wx>.2,last=n===(W.sprint?0:2);
  const copts=["S","M","H","I","W"].flatMap(t=>{const x=W.inv[t],o=[];if(x.n>0)o.push(`<option value="${t}:n">${TY[t].n} nuovo (${x.n})</option>`);if(x.u>0)o.push(`<option value="${t}:u">${TY[t].n} usato (${x.u})</option>`);return o}).join("");
@@ -592,7 +593,7 @@ function fpView(W,c){
  <div class="row" style="margin-top:12px"><button ${runs>=maxRuns?"disabled":""} onclick="fpRun()">ESCI IN PISTA</button><button class="secondary" onclick="fpDone()">${nextTxt}</button></div>
  ${F.notes[n].length?`<div class="radio" style="margin-top:14px;max-height:none">${F.notes[n].map(x=>`<div>${x}</div>`).join("")}</div>`:""}</div>
  <div class="panel"><div class="panelhead"><h2>Gomme e dati raccolti</h2></div><p class="muted">Set rimasti nel weekend:</p><div style="margin-bottom:12px">${invHtml(W)}</div>
- ${["S","M","H","I","W"].map(t=>{const e=tkEst(W,t);return `<div class="between" style="padding:8px 0;border-bottom:1px solid #202d3e"><span>${tyreBadge(t)} ${TY[t].n}</span><b>~${e.v} giri <span class="muted" style="font-weight:400">±${e.err} · ${e.n?e.n+(e.n===1?" test":" test"):"stima teorica"}${"IW".includes(t)?" · su bagnato":""}</span></b></div>`}).join("")}
+ ${TYS().map(t=>{const e=tkEst(W,t);return `<div class="between" style="padding:8px 0;border-bottom:1px solid #202d3e"><span>${tyreBadge(t)} ${TY[t].n}</span><b>~${e.v} giri <span class="muted" style="font-weight:400">±${e.err} · ${e.n?e.n+(e.n===1?" test":" test"):"stima teorica"}${"IW".includes(t)?" · su bagnato":""}</span></b></div>`}).join("")}
  <p class="muted" style="margin-top:12px">Le stime di intermedie e full wet valgono con pista bagnata: sull'asciutto si consumano molto prima. Più test fai, più la stima è precisa. Asfalto a ${W.trk}°: ${W.trk>40?"caldo, usura più alta del normale.":W.trk<26?"fresco, usura contenuta.":"temperatura nella norma."}</p>
  <div class="muted" style="font-size:12px">${older}</div></div></div>${fpTT(n)}`;
 }
@@ -611,7 +612,7 @@ function fpRun(){
  else if(prog==="race"){W.rb=Math.min(.015,W.rb+.005);L.push(`Long run: degrado stimato ${(TY[comp].deg*c.sev*(1+(W.trk-38)*.012)*10).toFixed(2)} s ogni 10 giri.`,fbLines(F.set,W.ideal,sd*1.2),`Ritmo gara: bonus cumulato ${Math.round(W.rb*1000)} millesimi/giro in gara.`)}
  {F.tt=F.tt||[{},{},{}];const tt=F.tt[n],pi=G.drivers.indexOf(p);
   const lossP=Math.max(0,setupLoss(F.set,prog==="quali"?W.idealQ:W.ideal)),bs=biasAdj({qr:prog==="race"?100:prog==="quali"?0:50,dw:wx>.2?100:0},prog==="race"?"r":"q",wx);
-  const tp=c.base+(10-perfQ(p,c))-formOf(W,p)+lossP+bs+wetBase(wx,p)+TY[comp].pace*.5+(prog==="quali"?.15:prog==="setup"?.5:prog==="race"?1.4:1)+(W.trk-35)*.004+gauss()*.1+fpEvo(W,n)+(F.runs[n]===1&&n===0?.3:0)+(prog==="setup"||prog==="race"?sessDrift(W,n)*0:0);
+  const tp=c.base+(10-perfQ(p,c))-formOf(W,p)+lossP+bs+wetBase(wx,p)+TY[comp].pace*.5+(prog==="quali"?.45:prog==="setup"?.7:prog==="race"?1.5:1.1)+(W.trk-35)*.004+gauss()*.1+fpEvo(W,n)+(F.runs[n]===1&&n===0?.3:0)+(prog==="setup"||prog==="race"?sessDrift(W,n)*0:0);
   if(!tt[pi]||tp<tt[pi].t)tt[pi]={t:tp,c:comp};
   fpAIrun(n);
   const rk=Object.entries(tt).map(([i,x])=>({i:+i,t:x.t})).sort((a,b)=>a.t-b.t),mp=rk.findIndex(x=>x.i===pi)+1;
@@ -627,7 +628,7 @@ function fpAIrun(n){
  const W=G.weekend,c=circ(),w=W.fpWx[n],F=W.fp;F.tt=F.tt||[{},{},{}];const tt=F.tt[n],k=F.runs[n]||1;
  G.drivers.forEach((d,i)=>{if(d.isP)return;
   const comp=w>.2?(w>.65?"W":"I"):pick(["S","S","M","H"]),flying=Math.random()<.6;
-  const t=c.base+(10-perfQ(d,c))-formOf(W,d)+W.apErr[i]*(1.1-.2*k)*(1-.15*n)+wetBase(w,d)+TY[comp].pace*.5+(flying?rf(.1,.7):rf(.9,1.7))+gauss()*.12+(W.trk-35)*.004-(k-1)*.12+fpEvo(W,n)+(k===1&&n===0?.3:0);
+  const t=c.base+(10-perfQ(d,c))-formOf(W,d)+W.apErr[i]*(1.1-.2*k)*(1-.15*n)+wetBase(w,d)+TY[comp].pace*.5+(flying?rf(.35,1.2):rf(1,1.9))+gauss()*.12+(W.trk-35)*.004-(k-1)*.12+fpEvo(W,n)+(k===1&&n===0?.3:0);
   if(!tt[i]||t<tt[i].t)tt[i]={t,c:comp};
  });
 }
@@ -662,10 +663,12 @@ function qAttempt(d,c,W,w,ap,s,k,comp,main,used){
  const A=APPR[ap];
  let t=c.base+(10-perfQ(d,c))-formOf(W,d)+setupErr(W,d,main)+wetBase(w,d)+A.off+(comp==="M"?.6:0)+evoSec(c,w,s,k)-(d.isP?W.qb:0)+(d.isP?biasAdj(selSet(W,main?"q":"sq"),"q",w)+(used?(comp==="S"?.55:.4):0):0)+(W.trk-35)*.004+gauss()*.11*A.sd*(1.55-d.cons/100*.75)*(1+1.6*w);
  let err=false;if(Math.random()<A.mis*(1+w*2)*(1.7-d.cons/100)){t+=rf(.5,3);err=true}
+ if(!err&&w<=.2&&W.fp&&W.fp.tt){const di=G.drivers.indexOf(d);let fb=null;W.fp.tt.forEach((o,n)=>{if(W.fpWx[n]<=.2&&o[di]&&(fb===null||o[di].t<fb))fb=o[di].t});if(fb!==null){const lim=fb-rf(.2,.7);if(t>lim)t=lim}}
  if(Math.random()<.12)t+=rf(.03,.25);
  return{t,err};
 }
 function runQStage(sm,auto){
+ if(!auto){const W0=G.weekend;W0.lock=W0.lock||{};W0.lock[sm?"sq":"q"]=true}
  const W=G.weekend,c=circ(),key=sm?"sq":"q",w=sm?W.wxSQ:W.wxQ,pi=G.drivers.indexOf(P());
  const Q=W[key]=W[key]||{s:[],alive:G.drivers.map((d,i)=>i),stage:0,grid:null};
  const st=Q.stage;if(st>=3)return true;
@@ -715,7 +718,7 @@ function qualiNext(key){
  const W=G.weekend,Q=W[key],pi=G.drivers.indexOf(P());
  if(key==="sq")W.sgrid=Q.grid;
  else{W.grid=Q.grid;puGridApply(W);if(G.cat==="F2")W.sgrid=[...Q.grid.slice(0,10).reverse(),...Q.grid.slice(10)];
-  const pole=G.drivers[Q.grid[0]];pole.poles++;if(pole.isP)pole.career.poles++;
+  const pole=G.drivers[Q.grid[0]];pole.poles++;if(pole.isP)pole.career.poles++;if(G.cat==="F2"){pole.pts+=2;news(`Pole position ${G.drivers.indexOf(pole)===G.drivers.indexOf(P())?"conquistata da te":"di "+pole.name} (+2 punti, regolamento F2).`)}
   G.drivers.forEach((d,i)=>{d.res[W.ci]=d.res[W.ci]||{p:null,pts:0,sp:0};d.res[W.ci].g=Q.grid.indexOf(i)+1});
   const mate=G.drivers.find(d=>d.team===P().team&&!d.isP);if(mate){const gm=Q.grid.indexOf(G.drivers.indexOf(mate));const gp=Q.grid.indexOf(pi);P().h2hQ[gp<gm?0:1]++;{const pl=P();pl.pace=clamp(+(pl.pace+(gp<gm?.12:-.12)).toFixed(3),55,99)}}
   news(`Qualifiche ${circ().gp}: pole di ${pole.name}; tu parti ${Q.grid.indexOf(pi)+1}°.`);
@@ -746,7 +749,7 @@ function makePlan(start,laps,c,forced){
  for(let i=0;i<stops;i++){acc+=lens[i];plan.push({lap:clamp(Math.round(acc/tot*laps+gauss()*1.5),6+i*8,laps-4),tyre:seq[i+1]})}
  plan.sort((a,b)=>a.lap-b.lap);return plan;
 }
-function startRace(kind,tyreSel,auto){
+function startRace(kind,tyreSel,auto){{const W0=G.weekend;W0.lock=W0.lock||{};W0.lock[kind==="sprint"?"s":"r"]=true}
  const W=G.weekend,c=circ(),laps=kind==="sprint"?sprLaps(c):c.laps;
  const forcedStops=(()=>{const x=el("stratSel");return x?+x.value||0:0})();
  const grid=kind==="sprint"?W.sgrid:W.grid,wet=kind==="sprint"?W.wxS:W.wxR,rain=kind==="sprint"?W.rainS:W.rainR,pi=G.drivers.indexOf(P());
@@ -949,9 +952,11 @@ function finishSession(kind){
  const fin=R.cars.filter(x=>!x.out).sort((a,b)=>a.T-b.T),dn=R.cars.filter(x=>x.out).sort((a,b)=>b.outLap-a.outLap);
  const cl=[...fin,...dn],pts=G.cat==="F2"?(kind==="race"?PTS_F2R:PTS_F2S):(kind==="race"?PTS_R:PTS_S),lt=fin.length?fin[0].T/R.laps:90;
  const bestLap=Math.min(...R.cars.map(x=>x.best));
+ const flCar=cl.reduce((a,x)=>x.best<(a?a.best:999)?x:a,null);
  const rows=cl.map((car,k)=>{const d=G.drivers[car.i],pp=car.out?0:(pts[k]||0);
   const gap=car.out?null:car.T-fin[0].T;
   return{i:car.i,pos:k+1,grid:car.grid,pts:pp,out:car.out,gap,laps:car.out?car.outLap:(gap>lt*.95?Math.floor(gap/lt):0),stops:car.stops,best:car.best<900?car.best:null,pen:car.pen,fl:car.best===bestLap&&car.best<900}});
+ if(G.cat==="F2"&&kind==="race"){const f=rows.find(r=>r.fl&&!r.out&&r.pos<=10);if(f){f.pts+=1;f.flp=1}}
  W.res[kind]=rows;W["n"+kind]={sc:R.nSC||0,vsc:R.nVSC||0,rf:R.nRF||0};
  {let mine=0;R.cars.forEach(car=>{const t=G.teams[G.drivers[car.i].team];if(car.cost){const v=car.cost*(kind==="sprint"?.6:1);spOf(t).dmg+=v;if(G.drivers[car.i].team===G.drivers[R.pi].team)mine+=v}});if(mine>.3)news(`${kind==="sprint"?"Sprint":"GP"} ${c.gp}: costi per i danni ${mine.toFixed(1)} M$ (pesano sul budget cap).`)}
  rows.forEach(r=>{
@@ -979,8 +984,10 @@ function postRace(me){
  let ds=clamp((exp-pos)*.8,-6,6);if(mr){const mp=mr.out?16:mr.pos;ds+=pos<mp?1.5:-1.5}
  G.sat=clamp(G.sat+ds,0,100);
  G.rep=clamp(G.rep+clamp((exp-pos)*.25,-2,3)+(me.pos===1&&!me.out?2:0)-(me.out?.3:0),0,100);
- {const k=clamp((exp-pos)/6,-1.2,1.2),W=G.weekend,wetR=W.wxR.some(x=>x>.3),B=(a,v)=>{p[a]=clamp(+(p[a]+v).toFixed(3),55,99)};
-  B("race",k*.22);B("pace",k*.1);B("tyre",k*.08);if(wetR)B("wet",k*.3);B("tech",k*.08);
+ {const mp=mr?(mr.out?16:mr.pos):pos,km=clamp((mp-pos)/5,-1.2,1.2),ke=clamp((exp-pos)/6,-1.2,1.2),k=ke*.6+km*.9,W=G.weekend,wetR=W.wxR.some(x=>x>.3),B=(a,v)=>{p[a]=clamp(+(p[a]+v).toFixed(3),55,99)};
+  if(mr)p.mh=(p.mh||0)+(pos<mp?1:pos>mp?-1:0);
+  const yg=p.age<=24?.05:p.age<=28?.02:0;
+  B("race",k*.25+yg);B("pace",k*.12+yg);B("tyre",k*.09);if(wetR)B("wet",k*.3);B("tech",k*.09);
   if(me.out)B("cons",/Incidente|Uscita|Contatto|Errore|Sbandata/.test(me.out)?-.3:0);else B("cons",.04);}
 }
 function develop(){
@@ -1047,12 +1054,13 @@ function raceView(W,c,kind){
   return `<div class="panel"><div class="panelhead"><h2>${title} concluso</h2></div><div class="big">${me.out?"Ritirato":ord(me.pos)+" posto"} · ${me.pts} punti</div><p class="muted">${me.out?"Motivo: "+esc(me.out):""}</p><button onclick="afterSession('${kind}')">${isS?(G.cat==="F2"?"VAI AL GRAN PREMIO →":"VAI ALLA REVISIONE SETUP →"):"RIEPILOGO WEEKEND →"}</button></div>${resultsTable(res,"Classifica "+title,laps)}`;
  }
  if(!R||R.kind!==kind){
-  const w0=wxA[0],pg=grid.indexOf(pi)+1,opts=w0>.25?(w0>.68?["W","I"]:["I","W"]):(isS?["M"]:["S","M","H"]);
+  const w0=wxA[0],pg=grid.indexOf(pi)+1,opts=w0>.25?(w0>.68?["W","I"]:["I","W"]):(G.cat==="F2"?["S","M"]:isS?["M"]:["S","M","H"]);
   const dflt=opts.find(t=>hasSet(W,t)&&(w0>.25||(pg<=10?t==="S":t==="M")))||opts.find(t=>hasSet(W,t))||opts[0];
   const hint=tyreEstTxt(W);
   return `<div class="panel"><div class="panelhead"><h2>${isS?"03":(W.sprint?"06":"03")} · ${title}</h2><span class="tag">Griglia: ${pg}°</span></div>
   <div class="notice">${laps} giri · Al via: ${wxLabel(w0)} · Asfalto ${W.trk}° · ${fcText(fcOf(W,kind))} ${hint?"· "+hint:""}</div>
   <div class="notice">Undercut su questa pista: <b>${ucTxt(c)}</b>. Pit loss ${c.pit} s · sorpassi ${c.ovt>.55?"facili":c.ovt>.4?"medi":"difficili"} · usura ${c.sev>1.1?"alta":c.sev<.9?"bassa":"media"}.</div>
+  ${G.cat==="F2"?`<div class="notice">Regolamento F2: ${isS?`sprint di ${laps} giri (~120 km), griglia con i primi 10 invertiti, punti ai primi 8 (10-8-6-5-4-3-2-1), nessuna sosta obbligatoria`:`gara lunga di ${laps} giri (~170 km), sosta obbligatoria con 2 mescole diverse in asciutto (altrimenti +10 s), punti ai primi 10 (25-18-15-12-10-8-6-4-2-1), +1 al giro veloce se chiudi nei primi 10, +2 alla pole`}.</div>`:""}
   <p class="muted">${isS?`Sprint di ${laps} giri: si corre solo con la gomma Media (intermedie o full wet se piove), nessun pit stop obbligatorio. Punti ai primi 8.`:"Regola: in gara asciutta devi usare almeno 2 mescole diverse. Hai a disposizione solo i set rimasti: pianifica le soste."}</p>
   <div class="notice warn">Set di gomme rimasti: ${invHtml(W)}</div>
   ${selUI(W,isS?"s":"r")}<div class="field"><label>Gomma di partenza</label><div class="seg" id="startSeg">${opts.map(k=>`<button class="${k===dflt?"on":""}" data-t="${k}" onclick="selStart('${k}')">${tyreBadge(k)} ${TY[k].n} <small>${W.inv[k].n+W.inv[k].u}</small></button>`).join("")}</div></div>
@@ -1082,7 +1090,7 @@ function renderRace(){
   const dl=car.grid-(k+1);
   return `<tr class="${car.out?"out ":""}${d.isP?"me":d.team===p.team?"mate":""}"><td class="pos">${k+1}</td><td>${drow(d)}${car.out?"":(car.wing?' <span title="Ala danneggiata">🔧</span>':"")+(car.flat>.15?' <span title="Gomme rovinate">⬛</span>':"")+(car.floor?' <span title="Fondo danneggiato">⚠</span>':"")+(car.pu?' <span title="Potenza ridotta">⚡</span>':"")+(car.punct?' <span title="Foratura">💥</span>':"")+(car.penT?` <span class="tag bad" title="Penalità a fine gara">+${car.penT}s</span>`:"")}</td><td>${gap}</td><td class="muted">${itv}</td><td class="muted">${car.out||L<1?"":fmtLap(car.lap)}</td><td style="${car.best<900&&car.best===bestAll?"color:#e1b9ff;font-weight:800":"color:#9fb0c5"}">${car.best<900?fmtLap(car.best):""}</td><td>${car.out?"":tyreBadge(car.tyre)+` <span class="muted">${Math.floor(car.age)}</span>`}</td><td>${car.stops}</td><td>${car.out?"":dl>0?`<span style="color:#74edbf">▲${dl}</span>`:dl<0?`<span style="color:#ff7a86">▼${-dl}</span>`:""}</td></tr>`}).join("");
  const lim=pcar&&"SMH".includes(pcar.tyre)?lifeOf(pcar.tyre,c):40,wear=pcar?clamp(pcar.age/lim*100,0,120):0;
- const opts=R.kind==="sprint"?(w>.15?["I","W","M"]:["M"]):(w>.5?["W","I","M"]:w>.15?["I","W","M","H"]:["S","M","H","I"]);
+ const opts=G.cat==="F2"?["S","M","I","W"]:["S","M","H","I","W"];
  const fin=R.finished;
  const status=fin?`<div class="banner green">🏁 BANDIERA A SCACCHI</div>`:N?`<div class="banner sc">${N.t==="SC"?"🚨 SAFETY CAR":N.t==="RF"?"🚩 BANDIERA ROSSA":"🟡 VIRTUAL SAFETY CAR"} · ${N.left} giri</div>`:R.restart?`<div class="banner green">RIPARTENZA</div>`:`<div class="banner green" style="background:#102d22">🟢 BANDIERA VERDE</div>`;
  const radar=[...Array(10)].map((_,k)=>{const v=clamp((R.wet[Math.min(li+1+k,R.laps-1)]||0)+(R.rn[k]||0)*.03*(k+1),0,1);return `<i title="giro +${k+1}: ${Math.round(v*100)}% bagnato" style="display:inline-block;width:14px;height:${4+v*30}px;background:${v>.5?"#3b8bff":v>.15?"#5aa9d6":"#2a3b52"};margin-right:2px;vertical-align:bottom;border-radius:2px"></i>`}).join("");
@@ -1178,7 +1186,7 @@ function finishSeason(){
  p.career.seasons++;if(champ.isP){p.career.titles++;G.rep=clamp(G.rep+12,0,100);news(`🏆 ${p.name} è CAMPIONE DEL MONDO ${G.season}!`)}
  else G.rep=clamp(G.rep+(pos<=3?6:pos<=6?3:pos<=10?1:-2),0,100);
  const exp=expectedPos(p.team)+1;G.sat=clamp(G.sat+(exp-pos)*2,0,100);
- G.seasonPerf=clamp((exp-pos)/5,-2.2,2.2);
+ G.seasonPerf=clamp((exp-pos)/5+(P().mh||0)/6,-2.6,2.6);P().mh=0;
  // invecchiamento e progressione
  G.drivers.forEach(d=>{d.age++;progress(d);d.contract--});
  G.phase="offseason";
@@ -1333,8 +1341,21 @@ function loadCareer(){
  try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));if(d&&d.v===3){G=d;syncCat();if(!G.f2pool)G.f2pool=f2Pool();if(G.acad===undefined)G.acad=-1;if(!G.cat)G.cat="F1";if(!G.spr)G.spr=CIRC.map((c,i)=>c.sprint?i:-1).filter(i=>i>=0);if(G.weekend&&G.weekend.ver!==4)G.weekend=null;el("setup").classList.add("hidden");el("game").classList.remove("hidden");showPage("home");return true}}catch(e){}
  toast("Nessun salvataggio valido trovato.");return false;
 }
-function exportSave(){saveCareer(false);const b=new Blob([JSON.stringify(G)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`f1-carriera-${G.season}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function importSave(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.v!==3)throw 0;G=d;syncCat();if(!G.f2pool)G.f2pool=f2Pool();if(G.acad===undefined)G.acad=-1;if(!G.cat)G.cat="F1";if(!G.spr)G.spr=CIRC.map((c,i)=>c.sprint?i:-1).filter(i=>i>=0);if(G.weekend&&G.weekend.ver!==4)G.weekend=null;el("setup").classList.add("hidden");el("game").classList.remove("hidden");saveCareer(false);showPage("home");toast("Salvataggio importato.")}catch(e){toast("File non valido.")}};r.readAsText(f);inp.value=""}
+function saveText(){saveCareer(false);return JSON.stringify(G)}
+function loadFromText(txt){try{const d=JSON.parse(txt);if(d.v!==3)throw 0;G=d;syncCat();if(!G.f2pool)G.f2pool=f2Pool();if(G.acad===undefined)G.acad=-1;if(!G.cat)G.cat="F1";if(!G.spr)G.spr=CIRC.map((c,i)=>c.sprint?i:-1).filter(i=>i>=0);if(G.weekend&&G.weekend.ver!==4)G.weekend=null;el("setup").classList.add("hidden");el("game").classList.remove("hidden");saveCareer(false);showPage("home");closeSaveModal();toast("Salvataggio importato.")}catch(e){toast("Testo o file non valido.")}}
+function exportSave(){openSaveModal()}
+function openSaveModal(){
+ closeSaveModal();const has=!!G;const m=document.createElement("div");m.id="saveModal";m.style.cssText="position:fixed;inset:0;background:#000b;z-index:50;display:grid;place-items:center;padding:16px";
+ m.innerHTML=`<div class="panel" style="max-width:640px;width:100%;max-height:92vh;overflow:auto;margin:0"><div class="panelhead"><h2>💾 Salvataggio carriera</h2><button class="ghost small" onclick="closeSaveModal()">Chiudi</button></div>
+ <p class="muted" style="font-size:13px">Il salvataggio automatico resta nel browser, legato a questo indirizzo. Per portare i progressi altrove (altro sito, altro dispositivo) copia il testo e incollalo nella stessa finestra dall'altra parte. Il download del file funziona solo sul sito pubblicato, non nell'anteprima.</p>
+ ${has?`<div class="field"><label>Esporta</label><textarea id="saveTxt" readonly style="width:100%;height:110px;background:#0a111b;color:#9fb0c5;border:1px solid var(--line);border-radius:9px;padding:9px;font:11px monospace">${esc(saveText())}</textarea></div><div class="row" style="margin:10px 0 18px"><button class="small" onclick="copySave()">📋 Copia testo</button><button class="small ghost" onclick="downloadSave()">⬇ Scarica file .json</button></div>`:""}
+ <div class="field"><label>Importa (incolla il testo di un salvataggio)</label><textarea id="loadTxt" placeholder="Incolla qui..." style="width:100%;height:90px;background:#0a111b;color:#fff;border:1px solid var(--line);border-radius:9px;padding:9px;font:11px monospace"></textarea></div><div class="row" style="margin-top:10px"><button class="small" onclick="loadFromText(el('loadTxt').value)">⬆ Carica dal testo</button><button class="small ghost" onclick="el('impFile').click()">Scegli file .json</button></div></div>`;
+ document.body.appendChild(m);
+}
+function closeSaveModal(){const m=el("saveModal");if(m)m.remove()}
+function copySave(){const t=el("saveTxt");t.select();let ok=false;try{ok=document.execCommand("copy")}catch(e){}if(ok)toast("Copiato.");else if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(()=>toast("Copiato."),()=>toast("Seleziona il testo e copialo a mano."));else toast("Seleziona il testo e copialo a mano.")}
+function downloadSave(){const b=new Blob([saveText()],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`f1-carriera-${G.season}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function importSave(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>loadFromText(r.result);r.readAsText(f);inp.value=""}
 function backToMenu(force){
  if(force||confirm("Tornare al menu? La carriera salvata resterà disponibile.")){stopRace();saveCareer(false);el("game").classList.add("hidden");el("setup").classList.remove("hidden");addLoadBtn()}
 }
