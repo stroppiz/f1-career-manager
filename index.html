@@ -743,8 +743,8 @@ function radioAnswer(k){
 function makePlan(start,laps,c,forced){
  const sev=c.sev;let stops=clamp(Math.round(laps/(30/sev*1.05))-1,1,3);
  if(!forced&&Math.random()<.2)stops=clamp(stops+pick([-1,1]),1,3);if(forced)stops=forced;
- const seq=[start];for(let i=0;i<stops;i++){const prev=seq[seq.length-1];seq.push(pick(["M","H","S"].filter(x=>x!==prev||Math.random()<.15)))}
- if(new Set(seq).size<2)seq[1]=start==="H"?"M":"H";
+ const seq=[start];for(let i=0;i<stops;i++){const prev=seq[seq.length-1];seq.push(pick((G.cat==="F2"?["M","S"]:["M","H","S"]).filter(x=>x!==prev||Math.random()<.15)))}
+ if(new Set(seq).size<2)seq[1]=G.cat==="F2"?(start==="S"?"M":"S"):(start==="H"?"M":"H");
  const lens=seq.map(s=>lifeOf(s,c)),tot=lens.reduce((a,b)=>a+b,0);let acc=0;const plan=[];
  for(let i=0;i<stops;i++){acc+=lens[i];plan.push({lap:clamp(Math.round(acc/tot*laps+gauss()*1.5),6+i*8,laps-4),tyre:seq[i+1]})}
  plan.sort((a,b)=>a.lap-b.lap);return plan;
@@ -759,7 +759,7 @@ function startRace(kind,tyreSel,auto){{const W0=G.weekend;W0.lock=W0.lock||{};W0
   if(di===pi)start=tyreSel;
   else if(wet0>.5)start=wet0>.68?"W":"I";else if(wet0>.25)start="I";
   else if(kind==="sprint")start="M";
-  else start=gi<10?(Math.random()<.55&&c.sev<1.25?"S":"M"):(Math.random()<.5?"M":"H");
+  else start=gi<10?(Math.random()<.55&&c.sev<1.25?"S":"M"):(Math.random()<.5?"M":(G.cat==="F2"?"S":"H"));
   const plan=(kind==="race"&&"SMH".includes(start))?makePlan(start,laps,c,di===pi?forcedStops:0):[];
   return{i:di,T:gi*.35,tyre:start,age:di===pi?takeSet(W,start):0,used:[start],stops:0,mode:"S",out:null,outLap:0,plan,box:null,grid:gi+1,best:999,lap:0,react:rnd(0,2),rd:0,rd2:0,form:formOf(W,d)+(di===pi?W.rb:0),sErr:setupErr(W,d,kind==="race"),fresh:false,pos:gi+1,warned:false,tx:mkTx(di===pi),seen:{}};
  });
@@ -791,9 +791,9 @@ function aiDecide(car,L){
  return null;
 }
 function dryPick(car,left){
- let t=left<=14?"S":left>=30?"H":"M";
+ const f2=G.cat==="F2";let t=left<=14?"S":(left>=30&&!f2)?"H":"M";
  const dry=car.used.filter(x=>"SMH".includes(x));
- if(dry.length&&new Set(dry).size<2&&!car.used.some(x=>"IW".includes(x))&&t===dry[0])t=t==="H"?"M":"H";
+ if(dry.length&&new Set(dry).size<2&&!car.used.some(x=>"IW".includes(x))&&t===dry[0])t=f2?(t==="M"?"S":"M"):(t==="H"?"M":"H");
  return t;
 }
 function applyIncident(car,d,e,R){
@@ -1054,13 +1054,13 @@ function raceView(W,c,kind){
   return `<div class="panel"><div class="panelhead"><h2>${title} concluso</h2></div><div class="big">${me.out?"Ritirato":ord(me.pos)+" posto"} · ${me.pts} punti</div><p class="muted">${me.out?"Motivo: "+esc(me.out):""}</p><button onclick="afterSession('${kind}')">${isS?(G.cat==="F2"?"VAI AL GRAN PREMIO →":"VAI ALLA REVISIONE SETUP →"):"RIEPILOGO WEEKEND →"}</button></div>${resultsTable(res,"Classifica "+title,laps)}`;
  }
  if(!R||R.kind!==kind){
-  const w0=wxA[0],pg=grid.indexOf(pi)+1,opts=w0>.25?(w0>.68?["W","I"]:["I","W"]):(G.cat==="F2"?["S","M"]:isS?["M"]:["S","M","H"]);
+  const w0=wxA[0],pg=grid.indexOf(pi)+1,opts=w0>.25?(w0>.68?["W","I"]:["I","W"]):(G.cat==="F2"?(isS?["M"]:["S","M"]):isS?["M"]:["S","M","H"]);
   const dflt=opts.find(t=>hasSet(W,t)&&(w0>.25||(pg<=10?t==="S":t==="M")))||opts.find(t=>hasSet(W,t))||opts[0];
   const hint=tyreEstTxt(W);
   return `<div class="panel"><div class="panelhead"><h2>${isS?"03":(W.sprint?"06":"03")} · ${title}</h2><span class="tag">Griglia: ${pg}°</span></div>
   <div class="notice">${laps} giri · Al via: ${wxLabel(w0)} · Asfalto ${W.trk}° · ${fcText(fcOf(W,kind))} ${hint?"· "+hint:""}</div>
   <div class="notice">Undercut su questa pista: <b>${ucTxt(c)}</b>. Pit loss ${c.pit} s · sorpassi ${c.ovt>.55?"facili":c.ovt>.4?"medi":"difficili"} · usura ${c.sev>1.1?"alta":c.sev<.9?"bassa":"media"}.</div>
-  ${G.cat==="F2"?`<div class="notice">Regolamento F2: ${isS?`sprint di ${laps} giri (~120 km), griglia con i primi 10 invertiti, punti ai primi 8 (10-8-6-5-4-3-2-1), nessuna sosta obbligatoria`:`gara lunga di ${laps} giri (~170 km), sosta obbligatoria con 2 mescole diverse in asciutto (altrimenti +10 s), punti ai primi 10 (25-18-15-12-10-8-6-4-2-1), +1 al giro veloce se chiudi nei primi 10, +2 alla pole`}.</div>`:""}
+  ${G.cat==="F2"?`<div class="notice">Regolamento F2: ${isS?`sprint di ${laps} giri (~120 km): tutti partono con la mescola media (come gli altri piloti), griglia con i primi 10 invertiti, punti ai primi 8 (10-8-6-5-4-3-2-1), nessuna sosta obbligatoria`:`gara lunga di ${laps} giri (~170 km), sosta obbligatoria con 2 mescole diverse in asciutto (altrimenti +10 s), punti ai primi 10 (25-18-15-12-10-8-6-4-2-1), +1 al giro veloce se chiudi nei primi 10, +2 alla pole`}.</div>`:""}
   <p class="muted">${isS?`Sprint di ${laps} giri: si corre solo con la gomma Media (intermedie o full wet se piove), nessun pit stop obbligatorio. Punti ai primi 8.`:"Regola: in gara asciutta devi usare almeno 2 mescole diverse. Hai a disposizione solo i set rimasti: pianifica le soste."}</p>
   <div class="notice warn">Set di gomme rimasti: ${invHtml(W)}</div>
   ${selUI(W,isS?"s":"r")}<div class="field"><label>Gomma di partenza</label><div class="seg" id="startSeg">${opts.map(k=>`<button class="${k===dflt?"on":""}" data-t="${k}" onclick="selStart('${k}')">${tyreBadge(k)} ${TY[k].n} <small>${W.inv[k].n+W.inv[k].u}</small></button>`).join("")}</div></div>
