@@ -58,6 +58,7 @@ tbody tr{transition:background .15s}tbody tr:hover{background:#ffffff08}
 </head>
 <body>
 <header><div class="brand">F1 <span>CAREER</span> MANAGER</div><div class="topright" id="topSeason">MODALITÀ CARRIERA</div></header>
+<div id="noJs" style="background:#ef3340;color:#fff;padding:14px 18px;font:600 15px sans-serif;text-align:center">⚠ Questa pagina è aperta in un'anteprima che non esegue il gioco (per questo non puoi scegliere la scuderia). Apri il file con Chrome, Safari o Firefox: tocca il file → «Apri con» → browser. Se non vedi questo avviso, tutto funziona.</div>
 <div id="setup" class="setup app">
  <div class="eyebrow">La tua storia inizia qui</div><h1>Diventa un pilota di Formula 1.</h1><p>Crea il tuo pilota, scegli una scuderia e prova a conquistare il mondiale. Qualifiche Q1-Q2-Q3, gara giro per giro con gomme, pit stop, safety car e pioggia. Una carriera, tante stagioni.</p>
  <div class="setupstep"><span class="on"></span><span></span><span></span></div>
@@ -107,6 +108,7 @@ tbody tr{transition:background .15s}tbody tr:hover{background:#ffffff08}
 <input type="file" id="importFile" accept=".json" class="hidden" onchange="importSave(this)">
 <script>
 'use strict';
+{const n=document.getElementById('noJs');if(n)n.remove()}
 /* =====================  UTILITÀ  ===================== */
 const el=id=>document.getElementById(id);
 const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
